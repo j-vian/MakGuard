@@ -1,34 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { geminiModel } from '@/lib/gemini'
-import { ScanResult } from '@/lib/types'
+import { geminiScanModel } from '@/lib/gemini'
+import { SCAN_THREAT_TAGS, parseScanResult } from '@/lib/scan'
 
 const SYSTEM_PROMPT = `You are MakGuard, a Malaysian financial scam detection AI.
 Analyze the provided message and determine if it is a scam.
 
-You MUST respond with ONLY a valid JSON object in this exact format, no other text:
-{
-  "risk_score": <integer between 0 and 100>,
-  "confidence": <"low" | "medium" | "high">,
-  "threat_tags": <array of strings describing detected threats>,
-  "explanation": <string explaining why this is or is not a scam in simple English>
-}
+Return JSON with exactly these fields:
+- risk_score: integer 0-100
+- confidence: "low" | "medium" | "high"
+- threat_tags: array of snake_case tags (use ONLY values from the list below; include all that apply)
+- explanation: 1-3 sentences in simple English for a Malaysian user
+
+Allowed threat_tags (snake_case only):
+${SCAN_THREAT_TAGS.map((t) => `- ${t}`).join('\n')}
 
 Scoring guide:
 - 0 to 30: Safe, no scam indicators
-- 31 to 60: Suspicious, some scam patterns detected  
+- 31 to 60: Suspicious, some scam patterns detected
 - 61 to 85: Likely scam, strong indicators present
 - 86 to 100: Definite scam, multiple confirmed patterns
 
-Common Malaysian scam patterns to detect:
-- Urgency and panic language (account frozen, act now, last warning)
-- Bank impersonation (Maybank, CIMB, Bank Islam, RHB, Hong Leong)
-- Government impersonation (LHDN, PDRM, Bank Negara, SSM)
-- Fake prize or reward claims
-- Requests to click suspicious links
-- Requests to transfer money urgently
-- Requests to share OTP or PIN
-- Investment schemes with guaranteed returns
-- Emotional manipulation and fear tactics`
+Tag mapping hints:
+- bank_impersonation: fake bank messages (Maybank, CIMB, etc.)
+- urgency_tactics: account frozen, act now, deadlines
+- phishing_link: suspicious URLs or click-here links
+- government_impersonation: LHDN, PDRM, Bank Negara, SSM impersonation
+- fake_prize: you won a prize/lottery
+- otp_pin_request: asks for OTP, PIN, TAC, password
+- investment_scam: guaranteed returns, unit trust/crypto schemes
+- urgent_money_transfer: rush payment or transfer
+- emotional_manipulation: fear, guilt, or pressure tactics`
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this message:\n"${message}"`
 
-    const result = await geminiModel.generateContent(prompt)
+    const result = await geminiScanModel.generateContent(prompt)
     const responseText = result.response.text()
 
     const cleanedResponse = responseText
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       .replace(/```/g, '')
       .trim()
 
-    const scanResult: ScanResult = JSON.parse(cleanedResponse)
+    const scanResult = parseScanResult(JSON.parse(cleanedResponse))
 
     return NextResponse.json(scanResult, { status: 200 })
 
