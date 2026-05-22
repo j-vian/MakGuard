@@ -1,0 +1,46 @@
+# MakGuard AI — Cursor Rules
+
+## Project Context
+This is a 48-hour hackathon project called MakGuard AI.
+It is a mobile-responsive web application for AI-powered scam detection in Malaysia.
+Always refer to the /docs folder for full project specifications before generating code.
+
+## Stack Rules — Never Deviate
+- Framework: Next.js 14 with App Router only. Never suggest Pages Router.
+- Language: TypeScript only. Never use plain JavaScript or `any` types.
+- Styling: Tailwind CSS only. Never write custom CSS files or inline styles.
+- Components: Use shadcn/ui primitives. Never build UI components from scratch if shadcn has one.
+- AI: Google Gemini 2.5 Flash API only. Never suggest OpenAI, Anthropic, or other providers.
+- Database: Supabase with the JavaScript client only. Never suggest Prisma, Drizzle, or raw SQL files.
+- Deployment target: Vercel. Never suggest Docker, custom servers, or containerization.
+
+## Architecture Rules
+- All Supabase queries must live inside /app/api/ server-side route handlers only.
+- All Gemini API calls must live inside /app/api/ server-side route handlers only.
+- All VirusTotal API calls must live inside /app/api/ server-side route handlers only.
+- Never call any third-party API or Supabase directly from a client component.
+- Client components must only call our own internal /api/ routes via fetch().
+
+## Code Style Rules
+- camelCase for variables and functions.
+- PascalCase for React components and TypeScript interfaces.
+- snake_case for all Supabase column names.
+- No `any` types. Define proper TypeScript interfaces for all API responses.
+- No TODO comments or placeholder code. Every function must be complete and working.
+- Keep components small and single-purpose. One component per file.
+- All components that use hooks or browser APIs must have the 'use client' directive.
+
+## File Structure
+- /app — Next.js App Router pages and layouts
+- /app/api — All server-side API route handlers
+- /components/ui — shadcn/ui base components (do not modify these)
+- /components — Custom MakGuard components
+- /lib — Utility functions, Supabase client, type definitions
+- /docs — Project documentation only, no code here
+
+## MVP Priority Rules
+- If a feature is not listed in /docs/PRD.md under IN SCOPE, do not build it.
+- Always ask: is this the simplest implementation that works for a demo?
+- Optimize for demo reliability and mobile visual polish above all else.
+- Never suggest real-time websockets, complex state management libraries, or custom middleware.
+- If there are two ways to solve a problem, always choose the one with fewer dependencies.
