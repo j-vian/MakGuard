@@ -1,39 +1,36 @@
-# MakGuard AI
-
-> Malaysia's AI-powered scam shield. Detect threats before money leaves your account.
-
-MakGuard is a mobile-responsive web application that uses AI to analyze suspicious
-messages and verify recipient accounts before a transfer is authorized.
-
-## Core Features
-- **Scam Message Scanner** — Paste text or upload a screenshot for instant AI risk analysis
-- **Transfer Shield** — Cross-check account numbers and phone numbers against a threat registry
-- **Explainability Panel** — Understand exactly why a message was flagged
-- **Community Reporting** — Submit scam numbers to protect other users instantly
-
-## Tech Stack
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS, shadcn/ui
-- **AI**: Google Gemini 2.5 Flash API
-- **Database**: Supabase (Postgres)
-- **Deployment**: Vercel
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Copy environment variables: `cp .env.example .env.local`
-4. Fill in your API keys in `.env.local`
-5. Run the development server: `npm run dev`
-6. Open `http://localhost:3000`
+First, run the development server:
 
-## Environment Variables
-See `.env.example` for required keys.
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-## Project Docs
-- [Product Requirements](docs/PRD.md)
-- [Technical Specifications](docs/TECH_SPECS.md)
-- [48-Hour Roadmap](docs/ROADMAP.md)
-- [Style Guide](docs/STYLE_GUIDE.md)
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Team
-Built for HackathonX FinTech Forward 2026 — Track 1: Reimagine Money
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
