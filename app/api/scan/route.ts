@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { geminiScanModel } from '@/lib/gemini'
+import { generateScanContent } from '@/lib/gemini'
 import { SCAN_THREAT_TAGS, parseScanResult } from '@/lib/scan'
 
 const SYSTEM_PROMPT = `You are MakGuard, a Malaysian financial scam detection AI.
@@ -45,8 +45,7 @@ export async function POST(request: NextRequest) {
 
     const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this message:\n"${message}"`
 
-    const result = await geminiScanModel.generateContent(prompt)
-    const responseText = result.response.text()
+    const responseText = await generateScanContent(prompt)
 
     const cleanedResponse = responseText
       .replace(/```json/g, '')
@@ -57,8 +56,25 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(scanResult, { status: 200 })
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Scan API error:', error)
+    const upstreamStatus =
+      error != null && typeof error === 'object' && 'status' in error
+        ? (error as Record<string, unknown>).status
+        : undefined
+
+    if (upstreamStatus === 429) {
+      return NextResponse.json(
+        { error: 'Gemini API quota exceeded — free tier limit reached. Please wait a minute and try again.' },
+        { status: 429 }
+      )
+    }
+    if (upstreamStatus === 503) {
+      return NextResponse.json(
+        { error: 'Gemini AI is experiencing high demand right now. Please try again in a few seconds.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to analyze message' },
       { status: 500 }
