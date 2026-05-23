@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateScanContent } from '@/lib/gemini'
+import { generateScanContent, generateScanMultimodal } from '@/lib/gemini'
+import type { ScanMultimodalPart } from '@/lib/gemini'
 import { SCAN_THREAT_TAGS, parseScanResult } from '@/lib/scan'
 
 const SYSTEM_PROMPT = `You are MakGuard, a Malaysian financial scam detection AI.
@@ -9,7 +10,16 @@ Return JSON with exactly these fields:
 - risk_score: integer 0-100
 - confidence: "low" | "medium" | "high"
 - threat_tags: array of snake_case tags (use ONLY values from the list below; include all that apply)
-- explanation: 1-3 sentences in simple English for a Malaysian user
+- explanation: written directly to the user, referencing specific words or phrases from their actual message
+
+EXPLANATION RULES:
+- Talk directly to the user, not about the message
+- Quote or reference specific words you spotted in the message
+- If safe: describe what the message is actually about, then confirm it is safe
+- If scam: name exactly which tricks the scammer is using, then tell the user what not to do
+- Maximum 3 sentences, no jargon
+- Safe example: "This looks like a friendly reminder from someone you know about a small debt of RM5. There are no suspicious links, urgency tactics, or requests for personal information. You can safely reply or transfer the amount to your friend."
+- Scam example: "This message is impersonating Maybank and using the word URGENT to pressure you into clicking a fake link. The URL maybank2u-secure-verify.com is not a real Maybank site and is designed to steal your login credentials. Do not click the link — real banks never suspend accounts via SMS this way."
 
 Allowed threat_tags (snake_case only):
 ${SCAN_THREAT_TAGS.map((t) => `- ${t}`).join('\n')}
@@ -34,18 +44,43 @@ Tag mapping hints:
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { message } = body
+    const message =
+      typeof body.message === 'string' ? body.message.trim() : ''
+    const imageData =
+      typeof body.image_data === 'string' ? body.image_data : undefined
 
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    if (!message && !imageData) {
       return NextResponse.json(
-        { error: 'Message is required' },
+        { error: 'Message or image is required' },
         { status: 400 }
       )
     }
 
-    const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this message:\n"${message}"`
+    let responseText: string
 
-    const responseText = await generateScanContent(prompt)
+    if (imageData) {
+      const mimeMatch = imageData.match(/^data:(image\/[\w+.-]+);base64,/)
+      const mimeType = mimeMatch?.[1] ?? 'image/jpeg'
+      const base64Data = imageData.replace(/^data:image\/[\w+.-]+;base64,/, '')
+
+      const parts: ScanMultimodalPart[] = [
+        { text: SYSTEM_PROMPT },
+        { inlineData: { mimeType, data: base64Data } },
+      ]
+
+      if (message) {
+        parts.push({ text: `Analyze this message:\n"${message}"` })
+      } else {
+        parts.push({
+          text: 'Analyze this screenshot for scam indicators. Return the standard JSON risk assessment.',
+        })
+      }
+
+      responseText = await generateScanMultimodal(parts)
+    } else {
+      const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this message:\n"${message}"`
+      responseText = await generateScanContent(prompt)
+    }
 
     const cleanedResponse = responseText
       .replace(/```json/g, '')
@@ -55,7 +90,6 @@ export async function POST(request: NextRequest) {
     const scanResult = parseScanResult(JSON.parse(cleanedResponse))
 
     return NextResponse.json(scanResult, { status: 200 })
-
   } catch (error: unknown) {
     console.error('Scan API error:', error)
     const upstreamStatus =
@@ -65,13 +99,19 @@ export async function POST(request: NextRequest) {
 
     if (upstreamStatus === 429) {
       return NextResponse.json(
-        { error: 'Gemini API quota exceeded — free tier limit reached. Please wait a minute and try again.' },
+        {
+          error:
+            'Gemini API quota exceeded — free tier limit reached. Please wait a minute and try again.',
+        },
         { status: 429 }
       )
     }
     if (upstreamStatus === 503) {
       return NextResponse.json(
-        { error: 'Gemini AI is experiencing high demand right now. Please try again in a few seconds.' },
+        {
+          error:
+            'Gemini AI is experiencing high demand right now. Please try again in a few seconds.',
+        },
         { status: 503 }
       )
     }

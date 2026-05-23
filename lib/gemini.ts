@@ -54,7 +54,13 @@ export const geminiModel = genAI.getGenerativeModel({
  * Run scan with model fallbacks and short retries on 503 (high demand).
  * Tries gemini-2.0-flash first (1,500 free RPD), then lighter / backup models.
  */
-export async function generateScanContent(prompt: string): Promise<string> {
+export type ScanMultimodalPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+
+async function runScanGeneration(
+  content: string | ScanMultimodalPart[]
+): Promise<string> {
   let lastError: unknown
 
   for (const modelName of SCAN_MODEL_FALLBACKS) {
@@ -65,7 +71,7 @@ export async function generateScanContent(prompt: string): Promise<string> {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const result = await model.generateContent(prompt)
+        const result = await model.generateContent(content)
         const text = result.response.text()
         if (text?.trim()) return text
         throw new Error('Empty response from Gemini')
@@ -78,7 +84,6 @@ export async function generateScanContent(prompt: string): Promise<string> {
           continue
         }
 
-        // Try next model on overload, not found, or quota for this model only
         if (status === 503 || status === 404 || status === 429) {
           break
         }
@@ -89,4 +94,14 @@ export async function generateScanContent(prompt: string): Promise<string> {
   }
 
   throw lastError ?? new Error('All Gemini scan models failed')
+}
+
+export async function generateScanContent(prompt: string): Promise<string> {
+  return runScanGeneration(prompt)
+}
+
+export async function generateScanMultimodal(
+  parts: ScanMultimodalPart[]
+): Promise<string> {
+  return runScanGeneration(parts)
 }

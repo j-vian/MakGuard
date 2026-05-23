@@ -4,7 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { target_value, value_type, threat_type, reporter_notes } = body
+    const { target_value, value_type, threat_type, reporter_notes, evidence_url } =
+      body
 
     if (!target_value || !value_type || !threat_type) {
       return NextResponse.json(
@@ -41,16 +42,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { error } = await supabaseAdmin
-      .from('scam_reports')
-      .insert({
-        target_value: target_value.trim(),
-        value_type,
-        threat_type,
-        reporter_notes: reporter_notes || null,
-        source: 'community_report',
-        is_verified: false
-      })
+    const row: Record<string, unknown> = {
+      target_value: target_value.trim(),
+      value_type,
+      threat_type,
+      reporter_notes: reporter_notes || null,
+      source: 'community_report',
+      is_verified: false,
+    }
+    if (evidence_url) {
+      row.evidence_url = evidence_url
+    }
+
+    const { error } = await supabaseAdmin.from('scam_reports').insert(row)
 
     if (error) throw error
 
@@ -58,7 +62,6 @@ export async function POST(request: NextRequest) {
       { message: 'Scam reported successfully. Thank you for keeping Malaysia safe.' },
       { status: 200 }
     )
-
   } catch (error) {
     console.error('Report API error:', error)
     return NextResponse.json(
