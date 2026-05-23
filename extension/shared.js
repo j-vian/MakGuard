@@ -57,8 +57,51 @@ const CALL_GUARD_MEETING_HOSTS = [
   'teams.live.com',
 ]
 
-const CALL_GUARD_SCAN_DEBOUNCE_MS = 20_000
+/** Minimum gap between routine transcript scans */
+const CALL_GUARD_SCAN_DEBOUNCE_MS = 4_000
+/** Minimum gap between urgent / keyword-triggered scans */
+const CALL_GUARD_FAST_SCAN_MS = 1_200
+/** Tab audio chunk length sent to Gemini (captures remote caller in headphones) */
+const CALL_GUARD_AUDIO_CHUNK_MS = 4_000
 const CALL_GUARD_TRANSCRIPT_MAX = 3000
+const CALL_GUARD_ALERT_COOLDOWN_MS = 25_000
+
+/** Narrow phrases → show red alert immediately (demo / coercion lines) */
+const CALL_GUARD_INSTANT_ALERT_PATTERNS = [
+  'give me your money',
+  'give me the money',
+  'give me money now',
+  'you will be arrested',
+  "you'll be arrested",
+  'or you will be arrested',
+  'transfer now or else',
+  'send the money now',
+]
+
+/** Direct coercion — fast scan + amber “verifying” banner (not instant red alert). */
+const CALL_GUARD_URGENT_PATTERNS = [
+  'give me your money',
+  'give me the money',
+  'give me money',
+  'you will be arrested',
+  "you'll be arrested",
+  'or you will be arrested',
+  'or youll be arrested',
+  'send money now',
+  'transfer now',
+  'transfer immediately',
+  'account frozen',
+  'account suspended',
+  'otp code',
+  ' tac code',
+  'tac code',
+  'give me your pin',
+  'give me your password',
+  'safe account',
+]
+
+/** Wait before treating urgent speech as needing a confirmed API alert. */
+const CALL_GUARD_ALERT_CONFIRM_MS = 5_500
 
 /** In-memory session cache TTL (not persisted to chrome.storage) */
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000
@@ -111,11 +154,24 @@ function isCallGuardMeetingUrl(url) {
   }
 }
 
+function hasUrgentCallGuardKeywords(text) {
+  const lower = String(text || '').toLowerCase()
+  return CALL_GUARD_URGENT_PATTERNS.some((p) => lower.includes(p))
+}
+
+function hasDirectCoercionPattern(text) {
+  const lower = String(text || '').toLowerCase()
+  return CALL_GUARD_INSTANT_ALERT_PATTERNS.some((p) => lower.includes(p))
+}
+
 /** Looser gate for live call transcripts — enough speech or scam keywords */
 function passesCallGuardHeuristic(text) {
   const lower = text.toLowerCase().trim()
-  if (lower.length < 40) return false
-  if (lower.length >= 100) return true
+  if (hasDirectCoercionPattern(lower) || hasUrgentCallGuardKeywords(lower)) {
+    return lower.length >= 12
+  }
+  if (lower.length < 30) return false
+  if (lower.length >= 80) return true
   return SUSPICIOUS_PATTERNS.some((p) => lower.includes(p))
 }
 
@@ -223,6 +279,51 @@ function getApiBase() {
   return API_BASE
 }
 
+async function getApiBaseAsync() {
+  try {
+    const data = await chrome.storage.local.get(['useLocalApi'])
+    if (data.useLocalApi) return API_BASE_DEV
+  } catch {
+    /* content script may not have storage in some contexts */
+  }
+  return API_BASE
+}
+
+// #region agent log
+const DEBUG_LOG_KEY = 'makguardDebug412c85'
+const DEBUG_LOG_MAX = 80
+
+function agentDebugLog(location, message, data, hypothesisId) {
+  const entry = {
+    sessionId: '412c85',
+    runId: 'pre-fix',
+    hypothesisId,
+    location,
+    message,
+    data: data ?? {},
+    timestamp: Date.now(),
+  }
+  console.log('[MakGuard debug]', location, message, entry.data)
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get([DEBUG_LOG_KEY], (stored) => {
+        const list = Array.isArray(stored[DEBUG_LOG_KEY]) ? stored[DEBUG_LOG_KEY] : []
+        list.push(entry)
+        while (list.length > DEBUG_LOG_MAX) list.shift()
+        chrome.storage.local.set({ [DEBUG_LOG_KEY]: list })
+      })
+    }
+  } catch {
+    /* ignore */
+  }
+  fetch('http://127.0.0.1:7365/ingest/5d27478f-eddb-47ce-acb6-2d3d7899d202', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '412c85' },
+    body: JSON.stringify(entry),
+  }).catch(() => {})
+}
+// #endregion
+
 function riskBadgeColor(score) {
   if (score <= 30) return '#22c55e'
   if (score <= 60) return '#f59e0b'
@@ -240,10 +341,18 @@ if (typeof globalThis !== 'undefined') {
     API_BASE_DEV,
     CALL_GUARD_MEETING_HOSTS,
     CALL_GUARD_SCAN_DEBOUNCE_MS,
+    CALL_GUARD_FAST_SCAN_MS,
+    CALL_GUARD_AUDIO_CHUNK_MS,
+    CALL_GUARD_ALERT_COOLDOWN_MS,
+    CALL_GUARD_URGENT_PATTERNS,
+    CALL_GUARD_INSTANT_ALERT_PATTERNS,
+    CALL_GUARD_ALERT_CONFIRM_MS,
     CALL_GUARD_TRANSCRIPT_MAX,
+    hasDirectCoercionPattern,
     shouldSkipUrl,
     passesHeuristicPrefilter,
     passesCallGuardHeuristic,
+    hasUrgentCallGuardKeywords,
     isCallGuardMeetingUrl,
     buildCallGuardCacheKey,
     truncateText,
@@ -253,6 +362,8 @@ if (typeof globalThis !== 'undefined') {
     isStableScanContext,
     SESSION_CACHE_TTL_MS,
     getApiBase,
+    getApiBaseAsync,
     riskBadgeColor,
+    agentDebugLog,
   }
 }

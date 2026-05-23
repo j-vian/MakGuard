@@ -45,8 +45,9 @@ The extension lives in the `extension/` folder and calls the deployed API at [ma
 ### Call Guard (video calls)
 
 - Works on **Google Meet** and **Microsoft Teams in Chrome** (web client only — not desktop apps)
-- Click **Start listening** on the in-meeting panel; allow microphone access
-- Speech is analyzed via the same `/api/scan` endpoint with `source: call_guard`
+- Click **Start listening** on the in-meeting panel (drag the panel by its header to move it)
+- Captures **meeting tab audio** so the remote caller is heard even with headphones, plus mic speech-to-text
+- Urgent phrases trigger scans in ~1–2s; tab audio is analyzed every ~4s via Gemini
 - See [docs/CALL_GUARD_DEMO_SCRIPT.md](docs/CALL_GUARD_DEMO_SCRIPT.md) for the teammate “scammer” test script
 - Dashboard **Call Guard** tab includes demo mode (paste script without a live call)
 

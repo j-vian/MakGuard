@@ -8,7 +8,8 @@ Use this script for live testing with a teammate on **Google Meet** or **Microso
 2. Open extension popup → ensure **Protection** and **Call Guard** are ON.
 3. Join a meeting in Chrome: [meet.google.com](https://meet.google.com) or [teams.microsoft.com](https://teams.microsoft.com).
 4. Click **Start listening** on the MakGuard Call Guard panel (bottom-right).
-5. Allow **microphone** when prompted. Use **speakers** (not muted headphones) so your mic picks up the scammer’s voice, or share the scammer’s audio into the call.
+5. Allow **microphone** when prompted (optional but helps). **Headphones are OK** — Call Guard captures **meeting tab audio**, so your friend’s voice in Meet/Teams is analyzed directly (not through your mic).
+6. **Drag** the Call Guard panel by its header if it blocks Meet controls.
 6. Scammer reads the script clearly, slightly slower than normal conversation.
 
 ## Full script (2–3 minutes)
@@ -33,7 +34,7 @@ Use this script for live testing with a teammate on **Google Meet** or **Microso
 
 ## Expected MakGuard behaviour
 
-- Within about **20–40 seconds** after scam keywords appear in the transcript, risk score should reach **61+**.
+- Within about **5–15 seconds** after scam keywords (urgent phrases trigger faster scans), risk score should reach **61+**.
 - A **red alert banner** appears: “Potential scam call — hang up”.
 - Extension toolbar shows a red **!** badge.
 

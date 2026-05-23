@@ -69,7 +69,11 @@ Scoring guide:
 - 61 to 85: Likely phone scam — strong indicators
 - 86 to 100: Definite scam — multiple confirmed patterns (OTP request + urgent transfer + impersonation)
 
-Focus on spoken scam patterns: bank/government impersonation, OTP/TAC/PIN requests, urgent transfers, safe-account tricks, investment guarantees, remote-access pressure.`
+Focus on spoken scam patterns: bank/government impersonation, OTP/TAC/PIN requests, urgent transfers, safe-account tricks, investment guarantees, remote-access pressure.
+
+Threatening coercion (e.g. "give me your money", "you will be arrested", "transfer now or else") directed at the listener in a financial or authority context should score at least 75 unless clearly a joke.
+
+Educational or neutral discussion (presentations, training, news, "how scams work", "types of scamming") without pressuring the listener to act should score 0–35 even if words like scam, fraud, or bank appear.`
 
 function truncateMessage(text: string): string {
   if (text.length <= MAX_MESSAGE_LENGTH) return text

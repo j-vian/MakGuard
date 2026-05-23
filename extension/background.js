@@ -6,8 +6,23 @@ const memoryCache = new Map()
 const callGuardCache = new Map()
 /** @type {Map<number, { pageKey: string | null, scanned: boolean, alertShown: boolean }>} */
 const tabSessions = new Map()
-/** @type {Map<number, { alertShown: boolean }>} */
+/** @type {Map<number, { alertShown: boolean, lastAlertAt: number }>} */
 const callGuardSessions = new Map()
+const callGuardScanInFlight = new Set()
+/** @type {Map<number, string>} */
+const callGuardTabUrls = new Map()
+
+async function ensureOffscreenDocument() {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+  })
+  if (contexts.length > 0) return
+  await chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: ['USER_MEDIA'],
+    justification: 'Capture Google Meet and Teams tab audio for Call Guard scam detection.',
+  })
+}
 
 function getCacheTtlMs() {
   return globalThis.MakGuardShared.SESSION_CACHE_TTL_MS
@@ -212,29 +227,45 @@ async function sendAlertToTab(tabId, result, attempt = 0) {
 }
 
 function getCallGuardSession(tabId) {
-  return callGuardSessions.get(tabId) ?? { alertShown: false }
+  return callGuardSessions.get(tabId) ?? { alertShown: false, lastAlertAt: 0 }
 }
 
 async function scanCallGuardTranscript(tabId, payload) {
   const shared = globalThis.MakGuardShared
-  const { url, transcript, force } = payload
+  const { url, transcript, force, urgent } = payload
 
   if (!(await isEnabled())) return
   if (tabId == null || !url || !transcript?.trim()) return
 
-  if (!force && !shared.passesCallGuardHeuristic(transcript)) {
+  if (!force && !urgent && !shared.passesCallGuardHeuristic(transcript)) {
+    // #region agent log
+    shared.agentDebugLog('background.js:scanCallGuardTranscript', 'skipped heuristic', {
+      transcriptLen: transcript.length,
+      force,
+      urgent,
+    }, 'H6')
+    // #endregion
     return
   }
 
+  const inFlightKey = `t:${tabId}`
+  if (callGuardScanInFlight.has(inFlightKey)) {
+    if (!urgent) return
+  }
+  callGuardScanInFlight.add(inFlightKey)
+
   const cacheKey = shared.buildCallGuardCacheKey(url, transcript)
+  const cacheTtl = urgent ? 8_000 : getCacheTtlMs()
   const cached = callGuardCache.get(cacheKey)
-  if (cached && Date.now() - cached.ts < getCacheTtlMs()) {
+  if (!urgent && cached && Date.now() - cached.ts < cacheTtl) {
+    callGuardScanInFlight.delete(inFlightKey)
     await applyCallGuardResult(tabId, cached.result)
     return
   }
 
   try {
-    const apiBase = shared.getApiBase()
+    const apiBase = await shared.getApiBaseAsync()
+    console.log('[MakGuard Call Guard] Transcript scan →', apiBase, { urgent, len: transcript.length })
     const res = await fetch(`${apiBase}/api/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -247,10 +278,50 @@ async function scanCallGuardTranscript(tabId, payload) {
 
     if (!res.ok) {
       console.warn('[MakGuard Call Guard] Scan API error:', res.status)
+      // #region agent log
+      shared.agentDebugLog('background.js:scanCallGuardTranscript', 'API error', {
+        status: res.status,
+        apiBase,
+      }, 'H2')
+      // #endregion
       return
     }
 
-    const result = await res.json()
+    let result = await res.json()
+    // #region agent log
+    shared.agentDebugLog('background.js:scanCallGuardTranscript', 'API result', {
+      risk_score: result.risk_score,
+      confidence: result.confidence,
+      hasError: !!result.error,
+      urgent,
+      transcriptLen: transcript.length,
+    }, 'H1')
+    // #endregion
+    if (result.error || typeof result.risk_score !== 'number') {
+      console.warn('[MakGuard Call Guard] Invalid scan result:', result.error ?? 'missing risk_score')
+      return
+    }
+
+    if (
+      urgent &&
+      shared.hasDirectCoercionPattern(transcript) &&
+      result.risk_score < 61
+    ) {
+      result = {
+        ...result,
+        risk_score: Math.max(result.risk_score, 75),
+        confidence: result.confidence === 'low' ? 'medium' : result.confidence,
+        explanation:
+          result.explanation ||
+          'Urgent scam phrases were detected in this call. Do not send money or share verification codes.',
+      }
+      // #region agent log
+      shared.agentDebugLog('background.js:scanCallGuardTranscript', 'urgent score boost', {
+        boostedTo: result.risk_score,
+      }, 'H1')
+      // #endregion
+    }
+
     callGuardCache.set(cacheKey, { ts: Date.now(), result })
     if (callGuardCache.size > 80) {
       const oldest = callGuardCache.keys().next().value
@@ -259,6 +330,8 @@ async function scanCallGuardTranscript(tabId, payload) {
     await applyCallGuardResult(tabId, result)
   } catch (err) {
     console.warn('[MakGuard Call Guard] Scan failed:', err)
+  } finally {
+    callGuardScanInFlight.delete(inFlightKey)
   }
 }
 
@@ -268,8 +341,28 @@ async function scanCallGuardAudio(tabId, payload) {
 
   if (!(await isEnabled()) || tabId == null || !audio_data) return
 
+  const inFlightKey = `a:${tabId}`
+  if (callGuardScanInFlight.has(inFlightKey)) return
+  callGuardScanInFlight.add(inFlightKey)
+
   try {
-    const apiBase = shared.getApiBase()
+    await chrome.tabs.sendMessage(tabId, { type: 'MAKguard_CALL_GUARD_ANALYZING' })
+  } catch {
+    /* tab may not be ready */
+  }
+
+  try {
+    const apiBase = await shared.getApiBaseAsync()
+    const scanUrl = url || callGuardTabUrls.get(tabId) || ''
+    // #region agent log
+    shared.agentDebugLog('background.js:scanCallGuardAudio', 'sending to API', {
+      apiBase,
+      audioDataLen: audio_data?.length ?? 0,
+      audioDataPrefix: audio_data?.slice(0, 80),
+      hasTranscript: !!transcript,
+      scanUrl: scanUrl?.slice(0, 50),
+    }, 'H4')
+    // #endregion
     const res = await fetch(`${apiBase}/api/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -278,20 +371,50 @@ async function scanCallGuardAudio(tabId, payload) {
           ? shared.truncateText(transcript, shared.CALL_GUARD_TRANSCRIPT_MAX)
           : undefined,
         audio_data,
-        page_url: url,
+        page_url: scanUrl,
         source: 'call_guard',
       }),
     })
 
     if (!res.ok) {
       console.warn('[MakGuard Call Guard] Audio scan error:', res.status)
+      // #region agent log
+      shared.agentDebugLog('background.js:scanCallGuardAudio', 'audio API error', {
+        status: res.status,
+        audioBytes: audio_data?.length ?? 0,
+      }, 'H2')
+      // #endregion
       return
     }
 
     const result = await res.json()
+    // #region agent log
+    shared.agentDebugLog('background.js:scanCallGuardAudio', 'audio API result', {
+      risk_score: result.risk_score,
+      confidence: result.confidence,
+      hasError: !!result.error,
+      errorMsg: result.error,
+      audioBytes: audio_data?.length ?? 0,
+      explanationLen: result.explanation?.length ?? 0,
+      explanationPreview: result.explanation?.slice(0, 100),
+    }, 'H5')
+    // #endregion
+    if (result.error || typeof result.risk_score !== 'number') {
+      return
+    }
     await applyCallGuardResult(tabId, result)
+    try {
+      await chrome.tabs.sendMessage(tabId, {
+        type: 'MAKguard_CALL_GUARD_AUDIO_RESULT',
+        result,
+      })
+    } catch {
+      /* ignore */
+    }
   } catch (err) {
     console.warn('[MakGuard Call Guard] Audio scan failed:', err)
+  } finally {
+    callGuardScanInFlight.delete(inFlightKey)
   }
 }
 
@@ -318,8 +441,23 @@ async function applyCallGuardResult(tabId, result) {
   await chrome.action.setBadgeText({ tabId, text: score > 30 ? '!' : '' })
   await chrome.action.setBadgeBackgroundColor({ tabId, color })
 
-  if (score >= 61 && !session.alertShown) {
-    callGuardSessions.set(tabId, { alertShown: true })
+  const now = Date.now()
+  const cooldown = shared.CALL_GUARD_ALERT_COOLDOWN_MS
+  const canAlert =
+    score >= 61 &&
+    (!session.alertShown || now - session.lastAlertAt >= cooldown)
+
+  // #region agent log
+  shared.agentDebugLog('background.js:applyCallGuardResult', 'alert decision', {
+    score,
+    canAlert,
+    alertShown: session.alertShown,
+    msSinceLastAlert: now - session.lastAlertAt,
+  }, 'H3')
+  // #endregion
+
+  if (canAlert) {
+    callGuardSessions.set(tabId, { alertShown: true, lastAlertAt: now })
     await sendCallGuardAlertToTab(tabId, result)
   }
 }
@@ -386,6 +524,60 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message.type === 'MAKguard_CALL_GUARD_START_FROM_POPUP') {
+    const { streamId, tabId, url } = message.payload ?? {}
+    if (tabId == null || !streamId) {
+      sendResponse({ ok: false, error: 'Missing tabId or streamId' })
+      return true
+    }
+
+    callGuardSessions.set(tabId, { alertShown: false, lastAlertAt: 0 })
+    if (url) {
+      callGuardTabUrls.set(tabId, url)
+    }
+
+    ;(async () => {
+      try {
+        await ensureOffscreenDocument()
+        chrome.runtime.sendMessage(
+          {
+            type: 'MAKguard_OFFSCREEN_START_TAB_AUDIO',
+            payload: { streamId, tabId },
+          },
+          (offscreenRes) => {
+            const offErr = chrome.runtime.lastError?.message ?? null
+            sendResponse({
+              ok: true,
+              tabAudio: offscreenRes?.ok === true,
+              captureError: offscreenRes?.error ?? offErr,
+            })
+          }
+        )
+      } catch (err) {
+        sendResponse({ ok: true, tabAudio: false, error: String(err) })
+      }
+    })()
+    return true
+  }
+
+  if (message.type === 'MAKguard_CALL_GUARD_STOP_FROM_POPUP') {
+    const tabId = message.tabId
+    if (tabId != null) {
+      callGuardSessions.delete(tabId)
+      callGuardTabUrls.delete(tabId)
+    }
+    chrome.runtime.sendMessage({ type: 'MAKguard_OFFSCREEN_STOP_TAB_AUDIO' })
+    sendResponse({ ok: true })
+    return true
+  }
+
+  if (message.type === 'MAKguard_GET_CALL_GUARD_ACTIVE') {
+    const tabId = message.tabId
+    const active = tabId != null && callGuardTabUrls.has(tabId)
+    sendResponse({ active })
+    return true
+  }
+
   if (message.type === 'MAKguard_CALL_GUARD_START') {
     const tabId = sender.tab?.id
     if (tabId == null) {
@@ -393,14 +585,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true
     }
 
-    callGuardSessions.set(tabId, { alertShown: false })
+    if (callGuardTabUrls.has(tabId)) {
+      sendResponse({ ok: true, tabAudio: true, startedByPopup: true })
+      return true
+    }
 
-    chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (streamId) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ ok: true, streamId: null })
-        return
-      }
-      sendResponse({ ok: true, streamId })
+    callGuardSessions.set(tabId, { alertShown: false, lastAlertAt: 0 })
+    if (message.payload?.url) {
+      callGuardTabUrls.set(tabId, message.payload.url)
+    }
+
+    sendResponse({
+      ok: true,
+      tabAudio: false,
+      captureError: 'Please click the MakGuard extension icon and press "Start Call Guard" to enable tab audio capture.',
+      needsPopupStart: true,
     })
     return true
   }
@@ -409,6 +608,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = sender.tab?.id
     if (tabId != null) {
       callGuardSessions.delete(tabId)
+      callGuardTabUrls.delete(tabId)
+    }
+    chrome.runtime.sendMessage({ type: 'MAKguard_OFFSCREEN_STOP_TAB_AUDIO' })
+    sendResponse({ ok: true })
+    return true
+  }
+
+  if (message.type === 'MAKguard_OFFSCREEN_AUDIO_CHUNK') {
+    const { tabId, audio_data, blobSize } = message.payload ?? {}
+    // #region agent log
+    globalThis.MakGuardShared.agentDebugLog(
+      'background.js:OFFSCREEN_AUDIO_CHUNK',
+      'chunk received from offscreen',
+      {
+        tabId,
+        blobSize,
+        audioDataLen: audio_data?.length ?? 0,
+        audioDataPrefix: audio_data?.slice(0, 50),
+      },
+      'H4'
+    )
+    // #endregion
+    if (tabId != null && audio_data) {
+      const url = callGuardTabUrls.get(tabId) ?? ''
+      chrome.tabs
+        .sendMessage(tabId, {
+          type: 'MAKguard_CALL_GUARD_TAB_AUDIO_CHUNK',
+          blobSize,
+        })
+        .catch(() => {})
+      scanCallGuardAudio(tabId, { url, audio_data, transcript: '' })
     }
     sendResponse({ ok: true })
     return true

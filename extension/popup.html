@@ -115,6 +115,46 @@
         margin-top: 8px;
         font-family: ui-monospace, monospace;
       }
+      .call-guard-section {
+        margin-bottom: 12px;
+      }
+      .call-guard-btn {
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.1s;
+      }
+      .call-guard-btn:hover {
+        opacity: 0.9;
+      }
+      .call-guard-btn:active {
+        transform: scale(0.98);
+      }
+      .call-guard-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .call-guard-btn.active {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      }
+      .call-guard-hint {
+        font-size: 11px;
+        color: #737373;
+        text-align: center;
+        margin-top: 6px;
+      }
+      .call-guard-hint.error {
+        color: #f87171;
+      }
+      .call-guard-hint.success {
+        color: #4ade80;
+      }
     </style>
   </head>
   <body>
@@ -144,6 +184,24 @@
       </div>
       <label class="switch">
         <input type="checkbox" id="call-guard-toggle" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="call-guard-start-section" class="call-guard-section" style="display:none;">
+      <button type="button" id="start-call-guard-btn" class="call-guard-btn">
+        🎙 Start Call Guard
+      </button>
+      <p class="call-guard-hint" id="call-guard-hint">Click to enable tab audio capture for this call</p>
+    </div>
+
+    <div class="toggle-row">
+      <div>
+        <p class="toggle-label">Dev: local API</p>
+        <p class="toggle-status" id="local-api-status-text">Uses production API</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="local-api-toggle" />
         <span class="slider"></span>
       </label>
     </div>
