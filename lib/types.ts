@@ -11,10 +11,9 @@ export interface ScamReport {
   }
   
   export interface ScanResult {
-    risk_score: number
-    threat_tags: string[]
-    explanation: string
-    confidence: 'low' | 'medium' | 'high'
+    score: number
+    flags: string[]
+    recommendation: string
   }
   
   export interface ShieldResult {

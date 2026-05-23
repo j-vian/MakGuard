@@ -135,49 +135,46 @@ export default function ScannerPage() {
       )}
 
       {result && (
-        <Card className={`border ${getRiskBg(result.risk_score)}`}>
+        <Card className={`border ${getRiskBg(result.score)}`}>
           <CardHeader className="pb-3">
             <CardTitle className="text-white text-base">Analysis Result</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-slate-800 border border-slate-700">
-                <span className="text-2xl">{getRiskEmoji(result.risk_score)}</span>
-                <span className={`text-xl font-bold ${getRiskColor(result.risk_score)}`}>
-                  {result.risk_score}
+                <span className="text-2xl">{getRiskEmoji(result.score)}</span>
+                <span className={`text-xl font-bold ${getRiskColor(result.score)}`}>
+                  {result.score}
                 </span>
                 <span className="text-slate-500 text-xs">/ 100</span>
               </div>
               <div className="flex-1">
-                <p className={`text-lg font-bold ${getRiskColor(result.risk_score)}`}>
-                  {getRiskLabel(result.risk_score)}
-                </p>
-                <p className="text-slate-400 text-sm">
-                  Confidence: <span className="text-white capitalize">{result.confidence}</span>
+                <p className={`text-lg font-bold ${getRiskColor(result.score)}`}>
+                  {getRiskLabel(result.score)}
                 </p>
                 <div className="mt-2 h-2 bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
-                      result.risk_score <= 30 ? 'bg-green-500' :
-                      result.risk_score <= 60 ? 'bg-yellow-500' :
-                      result.risk_score <= 85 ? 'bg-orange-500' : 'bg-red-500'
+                      result.score <= 30 ? 'bg-green-500' :
+                      result.score <= 60 ? 'bg-yellow-500' :
+                      result.score <= 85 ? 'bg-orange-500' : 'bg-red-500'
                     }`}
-                    style={{ width: `${result.risk_score}%` }}
+                    style={{ width: `${result.score}%` }}
                   />
                 </div>
               </div>
             </div>
 
-            {result.threat_tags.length > 0 && (
+            {result.flags.length > 0 && (
               <div>
                 <p className="text-slate-400 text-xs mb-2 uppercase tracking-wide">Detected threats</p>
                 <div className="flex flex-wrap gap-2">
-                  {result.threat_tags.map((tag) => (
+                  {result.flags.map((tag) => (
                     <Badge
                       key={tag}
                       className="bg-red-900 text-red-300 border-red-800 text-xs"
                     >
-                      {tag.replace(/_/g, ' ')}
+                      {tag}
                     </Badge>
                   ))}
                 </div>
@@ -185,9 +182,9 @@ export default function ScannerPage() {
             )}
 
             <div>
-              <p className="text-slate-400 text-xs mb-2 uppercase tracking-wide">AI Explanation</p>
+              <p className="text-slate-400 text-xs mb-2 uppercase tracking-wide">Recommendation</p>
               <div className="bg-slate-800 rounded-xl p-3">
-                <p className="text-slate-300 text-sm leading-relaxed">{result.explanation}</p>
+                <p className="text-slate-300 text-sm leading-relaxed">{result.recommendation}</p>
               </div>
             </div>
           </CardContent>

@@ -14,19 +14,14 @@ export const geminiScanModel = genAI.getGenerativeModel({
     responseSchema: {
       type: SchemaType.OBJECT,
       properties: {
-        risk_score: { type: SchemaType.INTEGER },
-        confidence: {
-          type: SchemaType.STRING,
-          format: 'enum',
-          enum: ['low', 'medium', 'high'],
-        },
-        threat_tags: {
+        score: { type: SchemaType.INTEGER },
+        flags: {
           type: SchemaType.ARRAY,
           items: { type: SchemaType.STRING },
         },
-        explanation: { type: SchemaType.STRING },
+        recommendation: { type: SchemaType.STRING },
       },
-      required: ['risk_score', 'confidence', 'threat_tags', 'explanation'],
+      required: ['score', 'flags', 'recommendation'],
     },
   },
 })

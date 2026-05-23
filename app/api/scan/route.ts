@@ -1,49 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { geminiScanModel } from '@/lib/gemini'
-import { SCAN_THREAT_TAGS, parseScanResult } from '@/lib/scan'
+import { parseScanResult } from '@/lib/scan'
 
-const SYSTEM_PROMPT = `You are MakGuard, a Malaysian financial scam detection AI.
-Analyze the provided message and determine if it is a scam.
+const SYSTEM_PROMPT = `You are a scam detection AI protecting elderly Malaysians from phone fraud.
+Analyze the call transcript or message for: urgency/pressure, fake authority (bank/police), financial manipulation (transfer now, account blocked), fear tactics, secrecy demands, personal data requests.
 
-Return JSON with exactly these fields:
-- risk_score: integer 0-100
-- confidence: "low" | "medium" | "high"
-- threat_tags: array of snake_case tags (use ONLY values from the list below; include all that apply)
-- explanation: 1-3 sentences in simple English for a Malaysian user
+Return only JSON with exactly these fields:
+- score: integer 0-100
+- flags: array of short strings
+- recommendation: one sentence in simple English
 
-Allowed threat_tags (snake_case only):
-${SCAN_THREAT_TAGS.map((t) => `- ${t}`).join('\n')}
-
-Scoring guide:
-- 0 to 30: Safe, no scam indicators
-- 31 to 60: Suspicious, some scam patterns detected
-- 61 to 85: Likely scam, strong indicators present
-- 86 to 100: Definite scam, multiple confirmed patterns
-
-Tag mapping hints:
-- bank_impersonation: fake bank messages (Maybank, CIMB, etc.)
-- urgency_tactics: account frozen, act now, deadlines
-- phishing_link: suspicious URLs or click-here links
-- government_impersonation: LHDN, PDRM, Bank Negara, SSM impersonation
-- fake_prize: you won a prize/lottery
-- otp_pin_request: asks for OTP, PIN, TAC, password
-- investment_scam: guaranteed returns, unit trust/crypto schemes
-- urgent_money_transfer: rush payment or transfer
-- emotional_manipulation: fear, guilt, or pressure tactics`
+Rules:
+- 0 to 34: SAFE (no scam indicators detected)
+- 35 to 64: SUSPICIOUS (some indicators detected)
+- 65 to 100: SCAM (strong indicators)
+- Never claim 100% safe; prefer "No scam indicators detected" wording.`
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { message } = body
+    const message =
+      typeof body.message === 'string' ? body.message :
+      typeof body.transcript === 'string' ? body.transcript :
+      typeof body.transcript_chunk === 'string' ? body.transcript_chunk :
+      ''
 
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    if (!message || message.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Message is required' },
+        { error: 'Message or transcript is required' },
         { status: 400 }
       )
     }
 
-    const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this message:\n"${message}"`
+    const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this transcript:\n"${message}"`
 
     const result = await geminiScanModel.generateContent(prompt)
     const responseText = result.response.text()

@@ -5,6 +5,15 @@ import { usePathname } from 'next/navigation'
 
 const navItems = [
   {
+    href: '/scamguard',
+    label: 'ScamGuard',
+    icon: (active: boolean) => (
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7" />
+      </svg>
+    )
+  },
+  {
     href: '/',
     label: 'Scanner',
     icon: (active: boolean) => (
@@ -37,7 +46,7 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 max-w-md mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 max-w-[420px] mx-auto">
       <div className="bg-slate-900 border-t border-slate-800 px-6 py-3">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
