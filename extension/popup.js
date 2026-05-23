@@ -1,9 +1,29 @@
+/** Set true in popup.js during local development to show the local API toggle */
+const SHOW_DEV_LOCAL_API = false
+
 const toggle = document.getElementById('enabled-toggle')
 const statusText = document.getElementById('status-text')
 const callGuardToggle = document.getElementById('call-guard-toggle')
 const callGuardStatusText = document.getElementById('call-guard-status-text')
+const devLocalApiRow = document.getElementById('dev-local-api-row')
 const localApiToggle = document.getElementById('local-api-toggle')
 const localApiStatusText = document.getElementById('local-api-status-text')
+
+function applyDevLocalApiVisibility() {
+  if (!devLocalApiRow) return
+  if (SHOW_DEV_LOCAL_API) {
+    devLocalApiRow.hidden = false
+    devLocalApiRow.removeAttribute('aria-hidden')
+    devLocalApiRow.style.cssText = ''
+    return
+  }
+  devLocalApiRow.hidden = true
+  devLocalApiRow.setAttribute('aria-hidden', 'true')
+  devLocalApiRow.style.cssText =
+    'display:none!important;height:0;margin:0;padding:0;border:0;overflow:hidden'
+}
+
+applyDevLocalApiVisibility()
 const callGuardSection = document.getElementById('call-guard-start-section')
 const startCallGuardBtn = document.getElementById('start-call-guard-btn')
 const callGuardHint = document.getElementById('call-guard-hint')
