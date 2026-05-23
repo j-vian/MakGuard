@@ -1,0 +1,111 @@
+.makguard-call-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483646;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  pointer-events: auto;
+}
+
+.makguard-call-inner {
+  background: linear-gradient(145deg, #1a0a2e 0%, #2d1b4e 100%);
+  border: 1px solid rgba(147, 51, 234, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px;
+  min-width: 260px;
+  max-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  color: #f5f5f5;
+  font-size: 13px;
+}
+
+.makguard-call-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.makguard-call-status {
+  font-size: 11px;
+  color: #a3a3a3;
+  font-family: ui-monospace, monospace;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.makguard-call-status.listening {
+  color: #4ade80;
+}
+
+.makguard-call-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.makguard-call-btn {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.makguard-call-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.makguard-call-btn-start {
+  background: #9333ea;
+  color: #fff;
+}
+
+.makguard-call-btn-start:hover:not(:disabled) {
+  background: #a855f7;
+}
+
+.makguard-call-btn-stop {
+  background: #404040;
+  color: #e5e5e5;
+}
+
+.makguard-call-btn-stop:hover:not(:disabled) {
+  background: #525252;
+}
+
+.makguard-call-hint {
+  margin-top: 10px;
+  font-size: 10px;
+  color: #737373;
+  line-height: 1.35;
+}
+
+.makguard-call-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: makguard-call-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes makguard-call-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+
+.makguard-alert-banner.makguard-call-alert .makguard-alert-header strong {
+  font-size: 14px;
+}

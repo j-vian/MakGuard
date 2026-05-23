@@ -3,8 +3,11 @@ importScripts('shared.js')
 const LEGACY_STORAGE_CACHE_KEY = 'makguardScanCache'
 
 const memoryCache = new Map()
+const callGuardCache = new Map()
 /** @type {Map<number, { pageKey: string | null, scanned: boolean, alertShown: boolean }>} */
 const tabSessions = new Map()
+/** @type {Map<number, { alertShown: boolean }>} */
+const callGuardSessions = new Map()
 
 function getCacheTtlMs() {
   return globalThis.MakGuardShared.SESSION_CACHE_TTL_MS
@@ -208,6 +211,119 @@ async function sendAlertToTab(tabId, result, attempt = 0) {
   }
 }
 
+function getCallGuardSession(tabId) {
+  return callGuardSessions.get(tabId) ?? { alertShown: false }
+}
+
+async function scanCallGuardTranscript(tabId, payload) {
+  const shared = globalThis.MakGuardShared
+  const { url, transcript, force } = payload
+
+  if (!(await isEnabled())) return
+  if (tabId == null || !url || !transcript?.trim()) return
+
+  if (!force && !shared.passesCallGuardHeuristic(transcript)) {
+    return
+  }
+
+  const cacheKey = shared.buildCallGuardCacheKey(url, transcript)
+  const cached = callGuardCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < getCacheTtlMs()) {
+    await applyCallGuardResult(tabId, cached.result)
+    return
+  }
+
+  try {
+    const apiBase = shared.getApiBase()
+    const res = await fetch(`${apiBase}/api/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: shared.truncateText(transcript, shared.CALL_GUARD_TRANSCRIPT_MAX),
+        page_url: url,
+        source: 'call_guard',
+      }),
+    })
+
+    if (!res.ok) {
+      console.warn('[MakGuard Call Guard] Scan API error:', res.status)
+      return
+    }
+
+    const result = await res.json()
+    callGuardCache.set(cacheKey, { ts: Date.now(), result })
+    if (callGuardCache.size > 80) {
+      const oldest = callGuardCache.keys().next().value
+      callGuardCache.delete(oldest)
+    }
+    await applyCallGuardResult(tabId, result)
+  } catch (err) {
+    console.warn('[MakGuard Call Guard] Scan failed:', err)
+  }
+}
+
+async function scanCallGuardAudio(tabId, payload) {
+  const shared = globalThis.MakGuardShared
+  const { url, audio_data, transcript } = payload
+
+  if (!(await isEnabled()) || tabId == null || !audio_data) return
+
+  try {
+    const apiBase = shared.getApiBase()
+    const res = await fetch(`${apiBase}/api/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: transcript
+          ? shared.truncateText(transcript, shared.CALL_GUARD_TRANSCRIPT_MAX)
+          : undefined,
+        audio_data,
+        page_url: url,
+        source: 'call_guard',
+      }),
+    })
+
+    if (!res.ok) {
+      console.warn('[MakGuard Call Guard] Audio scan error:', res.status)
+      return
+    }
+
+    const result = await res.json()
+    await applyCallGuardResult(tabId, result)
+  } catch (err) {
+    console.warn('[MakGuard Call Guard] Audio scan failed:', err)
+  }
+}
+
+async function sendCallGuardAlertToTab(tabId, result, attempt = 0) {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'MAKguard_CALL_GUARD_ALERT',
+      result,
+    })
+  } catch {
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      await sendCallGuardAlertToTab(tabId, result, attempt + 1)
+    }
+  }
+}
+
+async function applyCallGuardResult(tabId, result) {
+  const shared = globalThis.MakGuardShared
+  const score = result.risk_score ?? 0
+  const color = shared.riskBadgeColor(score)
+  const session = getCallGuardSession(tabId)
+
+  await chrome.action.setBadgeText({ tabId, text: score > 30 ? '!' : '' })
+  await chrome.action.setBadgeBackgroundColor({ tabId, color })
+
+  if (score >= 61 && !session.alertShown) {
+    callGuardSessions.set(tabId, { alertShown: true })
+    await sendCallGuardAlertToTab(tabId, result)
+  }
+}
+
 async function applyScanResult(tabId, pageKey, result) {
   const shared = globalThis.MakGuardShared
   const score = result.risk_score ?? 0
@@ -269,10 +385,64 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })
     return true
   }
+
+  if (message.type === 'MAKguard_CALL_GUARD_START') {
+    const tabId = sender.tab?.id
+    if (tabId == null) {
+      sendResponse({ ok: false, error: 'No active tab' })
+      return true
+    }
+
+    callGuardSessions.set(tabId, { alertShown: false })
+
+    chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (streamId) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ ok: true, streamId: null })
+        return
+      }
+      sendResponse({ ok: true, streamId })
+    })
+    return true
+  }
+
+  if (message.type === 'MAKguard_CALL_GUARD_STOP') {
+    const tabId = sender.tab?.id
+    if (tabId != null) {
+      callGuardSessions.delete(tabId)
+    }
+    sendResponse({ ok: true })
+    return true
+  }
+
+  if (message.type === 'MAKguard_CALL_GUARD_SCAN') {
+    const tabId = sender.tab?.id
+    scanCallGuardTranscript(tabId, message.payload).then(() => sendResponse({ ok: true }))
+    return true
+  }
+
+  if (message.type === 'MAKguard_CALL_GUARD_AUDIO') {
+    const tabId = sender.tab?.id
+    scanCallGuardAudio(tabId, message.payload).then(() => sendResponse({ ok: true }))
+    return true
+  }
+
+  if (message.type === 'MAKguard_GET_CALL_GUARD_STATUS') {
+    chrome.storage.local.get(['callGuardEnabled'], (data) => {
+      sendResponse({ callGuardEnabled: data.callGuardEnabled !== false })
+    })
+    return true
+  }
+
+  if (message.type === 'MAKguard_SET_CALL_GUARD_ENABLED') {
+    chrome.storage.local
+      .set({ callGuardEnabled: message.enabled })
+      .then(() => sendResponse({ callGuardEnabled: message.enabled }))
+    return true
+  }
 })
 
 chrome.runtime.onInstalled.addListener((details) => {
-  chrome.storage.local.set({ enabled: true })
+  chrome.storage.local.set({ enabled: true, callGuardEnabled: true })
   clearAllMemoryCache()
   purgeLegacyStorageCache()
 })
@@ -296,4 +466,5 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabSessions.delete(tabId)
+  callGuardSessions.delete(tabId)
 })

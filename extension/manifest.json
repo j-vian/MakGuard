@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "MakGuard — Scam Shield",
-  "version": "1.0.6",
-  "description": "Passive AI scam detection for Malaysian financial fraud on web pages.",
-  "permissions": ["storage", "tabs", "activeTab"],
+  "version": "1.1.0",
+  "description": "Passive AI scam detection for Malaysian financial fraud on web pages and video calls.",
+  "permissions": ["storage", "tabs", "activeTab", "tabCapture"],
   "host_permissions": [
     "https://makguard.vercel.app/*",
     "http://localhost:3000/*",
@@ -17,6 +17,17 @@
       "matches": ["<all_urls>"],
       "js": ["shared.js", "content.js"],
       "css": ["alert.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://teams.microsoft.com/*",
+        "https://*.teams.microsoft.com/*",
+        "https://teams.live.com/*"
+      ],
+      "js": ["shared.js", "call-guard.js"],
+      "css": ["alert.css", "call-guard.css"],
       "run_at": "document_idle"
     }
   ],

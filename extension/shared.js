@@ -50,6 +50,16 @@ const OWN_APP_HOSTS = new Set(['makguard.vercel.app', 'localhost'])
 const API_BASE = 'https://makguard.vercel.app'
 const API_BASE_DEV = 'http://localhost:3000'
 
+/** Call Guard — browser-based meeting platforms (web client only) */
+const CALL_GUARD_MEETING_HOSTS = [
+  'meet.google.com',
+  'teams.microsoft.com',
+  'teams.live.com',
+]
+
+const CALL_GUARD_SCAN_DEBOUNCE_MS = 20_000
+const CALL_GUARD_TRANSCRIPT_MAX = 3000
+
 /** In-memory session cache TTL (not persisted to chrome.storage) */
 const SESSION_CACHE_TTL_MS = 30 * 60 * 1000
 
@@ -87,6 +97,30 @@ function passesHeuristicPrefilter(text, urls) {
   })
 
   return textHit || urlHit
+}
+
+function isCallGuardMeetingUrl(url) {
+  if (!url) return false
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return CALL_GUARD_MEETING_HOSTS.some(
+      (h) => host === h || host.endsWith(`.${h}`)
+    )
+  } catch {
+    return false
+  }
+}
+
+/** Looser gate for live call transcripts — enough speech or scam keywords */
+function passesCallGuardHeuristic(text) {
+  const lower = text.toLowerCase().trim()
+  if (lower.length < 40) return false
+  if (lower.length >= 100) return true
+  return SUSPICIOUS_PATTERNS.some((p) => lower.includes(p))
+}
+
+function buildCallGuardCacheKey(url, text) {
+  return `call::${url}::${contentFingerprint(text)}`
 }
 
 function truncateText(text, maxLen) {
@@ -204,8 +238,14 @@ if (typeof globalThis !== 'undefined') {
     OWN_APP_HOSTS,
     API_BASE,
     API_BASE_DEV,
+    CALL_GUARD_MEETING_HOSTS,
+    CALL_GUARD_SCAN_DEBOUNCE_MS,
+    CALL_GUARD_TRANSCRIPT_MAX,
     shouldSkipUrl,
     passesHeuristicPrefilter,
+    passesCallGuardHeuristic,
+    isCallGuardMeetingUrl,
+    buildCallGuardCacheKey,
     truncateText,
     contentFingerprint,
     buildCacheKey,

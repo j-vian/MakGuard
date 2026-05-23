@@ -7,6 +7,7 @@ messages and verify recipient accounts before a transfer is authorized.
 
 ## Core Features
 - **Passive Browser Extension** — Scans web pages in the background when suspicious patterns appear; alerts via badge + dismissible banner
+- **Call Guard** — Listens during Google Meet / Microsoft Teams (web) calls and alerts on scam speech patterns (Chrome extension)
 - **Scam Message Scanner** — Paste text or upload a screenshot for instant AI risk analysis
 - **Transfer Shield** — Cross-check account numbers and phone numbers against a threat registry
 - **Explainability Panel** — Understand exactly why a message was flagged
@@ -40,6 +41,14 @@ The extension lives in the `extension/` folder and calls the deployed API at [ma
 - **Gmail inbox list** always gets a live AI scan (no result cache — inbox content changes too often)
 - **Opened email threads** and static pages use a **30-minute in-memory session cache** only (not persisted); revisiting the same email shows the alert instantly with matching explanation
 - Risk score ≥ 61 triggers a red urgent banner; lower scores update the badge only
+
+### Call Guard (video calls)
+
+- Works on **Google Meet** and **Microsoft Teams in Chrome** (web client only — not desktop apps)
+- Click **Start listening** on the in-meeting panel; allow microphone access
+- Speech is analyzed via the same `/api/scan` endpoint with `source: call_guard`
+- See [docs/CALL_GUARD_DEMO_SCRIPT.md](docs/CALL_GUARD_DEMO_SCRIPT.md) for the teammate “scammer” test script
+- Dashboard **Call Guard** tab includes demo mode (paste script without a live call)
 
 ## Tech Stack
 - **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS, shadcn/ui

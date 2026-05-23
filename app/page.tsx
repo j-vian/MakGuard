@@ -179,7 +179,8 @@ export default function LandingPage() {
 
         <section className="text-center pb-12">
           <p className="text-neutral-500 text-sm font-mono mb-4">
-            Also available: manual scanner, transfer shield & community reporting
+            Call Guard: join Meet or Teams in Chrome, click Start listening on the in-meeting panel.
+            Also: manual scanner, transfer shield & community reporting
           </p>
           <Link
             href="/dashboard"

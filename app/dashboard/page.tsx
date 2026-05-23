@@ -12,13 +12,18 @@ import {
   X,
   ChevronRight,
   ImageIcon,
+  Phone,
 } from 'lucide-react'
 import { ScanResult, ScamReport, EvidenceGalleryItem } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
+import {
+  CALL_GUARD_DEMO_SCRIPT,
+  CALL_GUARD_DEMO_SCRIPT_SHORT,
+} from '@/lib/call-guard-demo'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'scanner' | 'shield' | 'report'
+type ActiveTab = 'scanner' | 'callguard' | 'shield' | 'report'
 type ValueType = 'phone' | 'account' | 'url'
 type ShieldFilter = ValueType | 'gallery'
 type GalleryThreatFilter = ThreatType | 'all'
@@ -624,6 +629,119 @@ function TransferShieldPanel({
   )
 }
 
+// ─── Call Guard panel ────────────────────────────────────────────────────────
+
+function CallGuardPanel({
+  transcript,
+  onTranscriptChange,
+  onLoadDemo,
+  onLoadShortDemo,
+  onScan,
+  loading,
+  result,
+  error,
+}: {
+  transcript: string
+  onTranscriptChange: (v: string) => void
+  onLoadDemo: () => void
+  onLoadShortDemo: () => void
+  onScan: () => void
+  loading: boolean
+  result: ScanResult | null
+  error: string | null
+}) {
+  return (
+    <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
+      <div className="px-6 py-5 space-y-5 max-w-3xl">
+        <div className="rounded-xl border border-purple-500/25 bg-purple-950/20 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-purple-300 font-semibold text-sm">
+            <Phone className="w-4 h-4" />
+            Live Call Guard (Chrome extension)
+          </div>
+          <ol className="text-sm text-neutral-400 space-y-1 list-decimal list-inside">
+            <li>Install the MakGuard extension and enable Call Guard in the popup.</li>
+            <li>Join Google Meet or Microsoft Teams in Chrome (web, not desktop app).</li>
+            <li>Click Start listening on the Call Guard panel in the meeting.</li>
+            <li>Teammate reads the scam script — alert appears if risk ≥ 61.</li>
+          </ol>
+          <p className="text-xs text-neutral-500">
+            Teammate script:{' '}
+            <span className="text-purple-400 font-mono">docs/CALL_GUARD_DEMO_SCRIPT.md</span> — or use
+            Load full demo script below.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-neutral-200">Demo mode — analyze transcript</h2>
+          <p className="text-xs text-neutral-500">
+            Backup for demo day if live speech recognition fails. Paste or load the scammer script, then run
+            analysis.
+          </p>
+          <textarea
+            value={transcript}
+            onChange={(e) => onTranscriptChange(e.target.value)}
+            placeholder="Paste live call transcript or load the demo scammer script…"
+            className="w-full h-48 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:border-purple-500/50 resize-y font-mono"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onLoadDemo}
+              className="px-3 py-2 rounded-lg border border-neutral-700 text-xs text-neutral-300 hover:bg-neutral-800 transition-colors"
+            >
+              Load full demo script
+            </button>
+            <button
+              type="button"
+              onClick={onLoadShortDemo}
+              className="px-3 py-2 rounded-lg border border-neutral-700 text-xs text-neutral-300 hover:bg-neutral-800 transition-colors"
+            >
+              Load short script
+            </button>
+            <button
+              type="button"
+              onClick={onScan}
+              disabled={!transcript.trim() || loading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
+            >
+              {loading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5" />
+                  Run Call Guard analysis
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-sm text-rose-400 border border-rose-500/30 bg-rose-950/30 rounded-lg px-4 py-3">
+            {error}
+          </p>
+        )}
+
+        {result && (
+          <div className="space-y-2">
+            <p className="text-xs font-mono text-neutral-500">Analysis result</p>
+            <ScanResultCard result={result} />
+            {result.risk_score >= 61 && (
+              <p className="text-sm font-semibold text-rose-400">
+                This would trigger a live Call Guard alert — advise hanging up and verifying via official
+                bank channels.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -640,6 +758,11 @@ export default function DashboardPage() {
 
   const [scanMsg, setScanMsg] = useState('')
   const [scanLoading, setScanLoading] = useState(false)
+
+  const [callGuardTranscript, setCallGuardTranscript] = useState('')
+  const [callGuardLoading, setCallGuardLoading] = useState(false)
+  const [callGuardResult, setCallGuardResult] = useState<ScanResult | null>(null)
+  const [callGuardError, setCallGuardError] = useState<string | null>(null)
   const [attachedImage, setAttachedImage] = useState<string | null>(null)
   const scanFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -753,6 +876,35 @@ export default function DashboardPage() {
     setRepNotes('')
     setRepEvidenceFile(null)
     setRepEvidencePreview(null)
+  }
+
+  const handleCallGuardScan = async () => {
+    if (!callGuardTranscript.trim() || callGuardLoading) return
+    setCallGuardLoading(true)
+    setCallGuardError(null)
+    setCallGuardResult(null)
+
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: callGuardTranscript.trim(),
+          source: 'call_guard',
+          page_url: 'https://makguard.vercel.app/dashboard (demo)',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setCallGuardError(data.error ?? 'Analysis failed')
+      } else {
+        setCallGuardResult(data as ScanResult)
+      }
+    } catch {
+      setCallGuardError('Connection error — analysis could not complete')
+    } finally {
+      setCallGuardLoading(false)
+    }
   }
 
   const handleScan = async () => {
@@ -969,6 +1121,7 @@ export default function DashboardPage() {
             {(
               [
                 { id: 'scanner' as const, label: '🤖 AI Threat Scanner' },
+                { id: 'callguard' as const, label: '📞 Call Guard' },
                 { id: 'shield' as const, label: '🛡️ Transfer Shield' },
                 { id: 'report' as const, label: '📢 Community Report' },
               ]
@@ -994,6 +1147,17 @@ export default function DashboardPage() {
               loading={shieldLoading}
               fetchError={shieldFetchError}
               registryVersion={registryVersion}
+            />
+          ) : activeTab === 'callguard' ? (
+            <CallGuardPanel
+              transcript={callGuardTranscript}
+              onTranscriptChange={setCallGuardTranscript}
+              onLoadDemo={() => setCallGuardTranscript(CALL_GUARD_DEMO_SCRIPT)}
+              onLoadShortDemo={() => setCallGuardTranscript(CALL_GUARD_DEMO_SCRIPT_SHORT)}
+              onScan={handleCallGuardScan}
+              loading={callGuardLoading}
+              result={callGuardResult}
+              error={callGuardError}
             />
           ) : activeTab === 'scanner' ? (
             <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
