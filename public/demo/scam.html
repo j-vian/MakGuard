@@ -67,17 +67,27 @@
       </p>
       <p>
         Click here to verify now:
-        <a href="http://maybank2u-secure-verify.xyz/login">maybank2u-secure-verify.xyz/login</a>
+        <a href="http://maybank2u-secure-verify.xyz/login" id="fake-link">maybank2u-secure-verify.xyz/login</a>
       </p>
       <p>
         Enter your TAC code and online banking password to restore access. Failure to act will
         result in legal action under PDRM financial fraud regulations.
       </p>
-      <a class="btn" href="http://maybank2u-secure-verify.xyz/login">VERIFY ACCOUNT NOW</a>
+      <a class="btn" href="http://maybank2u-secure-verify.xyz/login" id="fake-btn">VERIFY ACCOUNT NOW</a>
 
       <p style="margin-top: 24px; font-size: 12px; color: #999">
         This is a MakGuard demo page for testing passive scam detection. Not a real bank site.
       </p>
     </div>
+    <script>
+      function blockFakeLink(event) {
+        event.preventDefault()
+        alert(
+          'Demo only: this is a fake phishing link. On a real scam page, clicking would take you to a credential-stealing site.'
+        )
+      }
+      document.getElementById('fake-link')?.addEventListener('click', blockFakeLink)
+      document.getElementById('fake-btn')?.addEventListener('click', blockFakeLink)
+    </script>
   </body>
 </html>

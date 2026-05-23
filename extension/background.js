@@ -72,6 +72,20 @@ async function scanPage(payload) {
   }
 }
 
+async function sendAlertToTab(tabId, result, attempt = 0) {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'MAKguard_ALERT',
+      result,
+    })
+  } catch {
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      await sendAlertToTab(tabId, result, attempt + 1)
+    }
+  }
+}
+
 async function applyScanResult(tabId, result) {
   const shared = globalThis.MakGuardShared
   const score = result.risk_score ?? 0
@@ -82,10 +96,7 @@ async function applyScanResult(tabId, result) {
     await chrome.action.setBadgeBackgroundColor({ tabId, color })
 
     if (score >= 61) {
-      chrome.tabs.sendMessage(tabId, {
-        type: 'MAKguard_ALERT',
-        result,
-      }).catch(() => {})
+      await sendAlertToTab(tabId, result)
     }
   }
 }
@@ -117,8 +128,8 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ enabled: true })
 })
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'loading') {
     chrome.action.setBadgeText({ tabId, text: '' })
   }
 })

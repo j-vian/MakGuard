@@ -37,22 +37,40 @@ const SUSPICIOUS_PATTERNS = [
 
 const SUSPICIOUS_TLDS = ['.xyz', '.top', '.click', '.tk', '.ml', '.ga', '.cf', '.gq']
 
-const SKIP_URL_PREFIXES = [
+const SYSTEM_URL_PREFIXES = [
   'chrome://',
   'chrome-extension://',
   'edge://',
   'about:',
   'devtools://',
-  'https://makguard.vercel.app/',
-  'http://localhost:3000/',
 ]
+
+const OWN_APP_HOSTS = new Set(['makguard.vercel.app', 'localhost'])
 
 const API_BASE = 'https://makguard.vercel.app'
 const API_BASE_DEV = 'http://localhost:3000'
 
 function shouldSkipUrl(url) {
   if (!url) return true
-  return SKIP_URL_PREFIXES.some((prefix) => url.startsWith(prefix))
+  if (SYSTEM_URL_PREFIXES.some((prefix) => url.startsWith(prefix))) return true
+
+  try {
+    const parsed = new URL(url)
+    if (!OWN_APP_HOSTS.has(parsed.hostname)) return false
+
+    // Always scan demo/test pages hosted on our domain
+    if (parsed.pathname.startsWith('/demo/')) return false
+
+    // Skip our own app UI (landing + dashboard tools) to avoid redundant scans
+    return (
+      parsed.pathname === '/' ||
+      parsed.pathname.startsWith('/dashboard') ||
+      parsed.pathname.startsWith('/shield') ||
+      parsed.pathname.startsWith('/report')
+    )
+  } catch {
+    return false
+  }
 }
 
 function passesHeuristicPrefilter(text, urls) {
@@ -89,7 +107,8 @@ if (typeof globalThis !== 'undefined') {
   globalThis.MakGuardShared = {
     SUSPICIOUS_PATTERNS,
     SUSPICIOUS_TLDS,
-    SKIP_URL_PREFIXES,
+    SYSTEM_URL_PREFIXES,
+    OWN_APP_HOSTS,
     API_BASE,
     API_BASE_DEV,
     shouldSkipUrl,

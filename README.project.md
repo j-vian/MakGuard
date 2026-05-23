@@ -22,6 +22,7 @@ The extension lives in the `extension/` folder and calls the deployed API at [ma
 2. Enable **Developer mode**
 3. Click **Load unpacked** and select the `extension/` folder
 4. Click the MakGuard toolbar icon and ensure protection is **ON**
+5. After pulling extension updates, click **Reload** on the MakGuard card in `chrome://extensions`
 
 ### Demo flow for judges
 
