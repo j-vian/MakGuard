@@ -16,28 +16,30 @@ messages and verify recipient accounts before a transfer is authorized.
 
 The extension lives in the `extension/` folder and calls the deployed API at [makguard.vercel.app](https://makguard.vercel.app).
 
-### Install (unpacked — hackathon demo)
+### Install (Chrome / Edge)
 
-1. Open `chrome://extensions` (or `edge://extensions`)
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select the `extension/` folder
-4. Click the MakGuard toolbar icon and ensure protection is **ON**
-5. After pulling extension updates, click **Reload** on the MakGuard card in `chrome://extensions`
+1. Download [makguard-extension.zip](https://makguard.vercel.app/makguard-extension.zip) from the landing page (or run `npm run pack:extension` locally)
+2. Unzip the file
+3. Open `chrome://extensions` (or `edge://extensions`) and enable **Developer mode**
+4. Click **Load unpacked** and select the unzipped folder
+5. Click the MakGuard toolbar icon and ensure protection is **ON**
+6. After updates, click **Reload** on the MakGuard card in `chrome://extensions`
 
 ### Demo flow for judges
 
-1. Visit the landing page at `/` — install instructions and product intro
-2. With the extension enabled, open [Demo scam page](https://makguard.vercel.app/demo/scam.html)
-3. Within ~3 seconds, MakGuard should show a red badge and a dismissible scam alert banner
-4. Open `/dashboard` to show the manual AI Threat Scanner still works for screenshots
+1. Landing page → download zip → Load unpacked (one-time)
+2. Demo scam page → red urgent alert within ~3–5 seconds
+3. Gmail → open a mock phishing email → same alert
+4. `/dashboard` → manual scanner still works
 
 ### How passive scanning works
 
-- Content script extracts visible page text and link URLs (never full HTML)
-- Local heuristics filter out safe pages (bank names, urgency words, suspicious TLDs)
-- If suspicious, sends truncated text to `POST /api/scan` with `source: "extension"`
-- Results are cached per URL for 5 minutes to protect Gemini quota
-- Risk score ≥ 61 triggers a non-blocking alert; lower scores update the badge only
+- Runs on **every website** plus **Gmail Web** (not native email apps)
+- Content script extracts visible text and link URLs (never full HTML)
+- Local heuristics skip safe pages — **no Gemini call unless suspicious**
+- **Gmail inbox list** always gets a live AI scan (no result cache — inbox content changes too often)
+- **Opened email threads** and static pages use a **30-minute in-memory session cache** only (not persisted); revisiting the same email shows the alert instantly with matching explanation
+- Risk score ≥ 61 triggers a red urgent banner; lower scores update the badge only
 
 ## Tech Stack
 - **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS, shadcn/ui

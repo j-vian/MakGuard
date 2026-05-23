@@ -50,6 +50,9 @@ const OWN_APP_HOSTS = new Set(['makguard.vercel.app', 'localhost'])
 const API_BASE = 'https://makguard.vercel.app'
 const API_BASE_DEV = 'http://localhost:3000'
 
+/** In-memory session cache TTL (not persisted to chrome.storage) */
+const SESSION_CACHE_TTL_MS = 30 * 60 * 1000
+
 function shouldSkipUrl(url) {
   if (!url) return true
   if (SYSTEM_URL_PREFIXES.some((prefix) => url.startsWith(prefix))) return true
@@ -92,6 +95,96 @@ function truncateText(text, maxLen) {
   return `${trimmed.slice(0, maxLen)}…`
 }
 
+function hashString(value) {
+  let hash = 5381
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+/** Fingerprint from email-like lines, not static Gmail chrome at the top of innerText */
+function contentFingerprint(text) {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => line.length > 12)
+
+  const suspiciousLines = lines.filter((line) => {
+    const lower = line.toLowerCase()
+    return (
+      SUSPICIOUS_PATTERNS.some((p) => lower.includes(p)) ||
+      SUSPICIOUS_TLDS.some((tld) => lower.includes(tld))
+    )
+  })
+
+  const sample =
+    suspiciousLines.length > 0
+      ? suspiciousLines.join('\n').slice(0, 1200)
+      : lines.slice(0, 25).join('\n').slice(0, 1200)
+
+  if (!sample) {
+    return hashString(text.replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 800))
+  }
+
+  return hashString(sample.toLowerCase())
+}
+
+function buildCacheKey(url, text) {
+  return `${url}::${contentFingerprint(text)}`
+}
+
+/**
+ * Dynamic views (Gmail inbox list) must always get a live AI scan.
+ * Stable views (opened email thread, demo pages, normal sites) may use session cache.
+ */
+function isStableScanContext(url) {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname !== 'mail.google.com') return true
+
+    const hash = parsed.hash || ''
+    if (!hash || hash === '#inbox') return false
+
+    if (hash.startsWith('#inbox/') && hash.length > 8) return true
+
+    return false
+  } catch {
+    return true
+  }
+}
+
+const CACHE_ENTITY_TERMS = [
+  'bsn',
+  'maybank',
+  'cimb',
+  'public bank',
+  'rhb',
+  'hong leong',
+  'ambank',
+  'bank islam',
+  'bank rakyat',
+  'lhdn',
+  'pdrm',
+  'bank negara',
+]
+
+/** Cached explanation must not mention entities absent from current page text */
+function cacheMatchesCurrentContent(cachedResult, message) {
+  if (!cachedResult || !message) return false
+
+  const lower = message.toLowerCase()
+  const explanation = String(cachedResult.explanation ?? '').toLowerCase()
+
+  for (const term of CACHE_ENTITY_TERMS) {
+    if (explanation.includes(term) && !lower.includes(term)) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function getApiBase() {
   return API_BASE
 }
@@ -114,6 +207,11 @@ if (typeof globalThis !== 'undefined') {
     shouldSkipUrl,
     passesHeuristicPrefilter,
     truncateText,
+    contentFingerprint,
+    buildCacheKey,
+    cacheMatchesCurrentContent,
+    isStableScanContext,
+    SESSION_CACHE_TTL_MS,
     getApiBase,
     riskBadgeColor,
   }

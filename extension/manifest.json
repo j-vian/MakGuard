@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MakGuard — Scam Shield",
-  "version": "1.0.1",
+  "version": "1.0.6",
   "description": "Passive AI scam detection for Malaysian financial fraud on web pages.",
   "permissions": ["storage", "tabs", "activeTab"],
   "host_permissions": [

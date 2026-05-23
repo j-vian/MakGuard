@@ -45,7 +45,8 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href="#install"
+              href="/makguard-extension.zip"
+              download="makguard-extension.zip"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors"
             >
               <Download className="w-4 h-4" />
@@ -71,12 +72,12 @@ export default function LandingPage() {
             {
               icon: Eye,
               title: 'Browse normally',
-              desc: 'MakGuard scans page content in the background when suspicious patterns appear.',
+              desc: 'MakGuard watches every site and Gmail — scanning in the background only when suspicious patterns appear.',
             },
             {
               icon: Zap,
               title: 'Get alerted',
-              desc: 'High-risk scams trigger a subtle badge and dismissible banner — never a blocking popup.',
+              desc: 'High-risk scams trigger a red urgent banner and badge — dismissible, never a blocking popup.',
             },
           ].map((item) => (
             <div
@@ -95,8 +96,8 @@ export default function LandingPage() {
         <section id="install" className="rounded-2xl border border-neutral-800/50 bg-neutral-900/40 backdrop-blur-md p-6 sm:p-8 mb-12">
           <h2 className="text-2xl font-bold text-white mb-2">Install the extension</h2>
           <p className="text-neutral-400 mb-6">
-            For the hackathon demo, load the extension unpacked from this repository. After merging
-            to main, the web app updates automatically at{' '}
+            Download the extension zip below — no repo clone needed. After merging to main, the
+            latest zip is rebuilt automatically on{' '}
             <a
               href="https://makguard.vercel.app"
               className="text-purple-400 hover:underline"
@@ -107,17 +108,21 @@ export default function LandingPage() {
             </a>
             .
           </p>
+          <a
+            href="/makguard-extension.zip"
+            download="makguard-extension.zip"
+            className="inline-flex items-center gap-2 mb-6 px-5 py-2.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 text-sm font-medium transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download makguard-extension.zip
+          </a>
           <ol className="space-y-4 text-sm text-neutral-300">
             <li className="flex gap-3">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600/30 text-purple-300 text-xs font-mono flex items-center justify-center">
                 1
               </span>
               <span>
-                Clone or download this repo, then open{' '}
-                <code className="text-purple-300 bg-neutral-800 px-1.5 py-0.5 rounded">
-                  chrome://extensions
-                </code>{' '}
-                in Chrome or Edge.
+                Download and <strong className="text-white">unzip</strong> the file above.
               </span>
             </li>
             <li className="flex gap-3">
@@ -125,7 +130,11 @@ export default function LandingPage() {
                 2
               </span>
               <span>
-                Enable <strong className="text-white">Developer mode</strong> (top right).
+                Open{' '}
+                <code className="text-purple-300 bg-neutral-800 px-1.5 py-0.5 rounded">
+                  chrome://extensions
+                </code>{' '}
+                in Chrome or Edge and enable <strong className="text-white">Developer mode</strong>.
               </span>
             </li>
             <li className="flex gap-3">
@@ -134,10 +143,11 @@ export default function LandingPage() {
               </span>
               <span>
                 Click <strong className="text-white">Load unpacked</strong> and select the{' '}
+                <strong className="text-white">unzipped folder</strong> (must contain{' '}
                 <code className="text-purple-300 bg-neutral-800 px-1.5 py-0.5 rounded">
-                  extension/
-                </code>{' '}
-                folder in this project.
+                  manifest.json
+                </code>
+                ).
               </span>
             </li>
             <li className="flex gap-3">
@@ -145,8 +155,8 @@ export default function LandingPage() {
                 4
               </span>
               <span>
-                Click the MakGuard icon in your toolbar and ensure protection is{' '}
-                <strong className="text-emerald-400">ON</strong>.
+                Click the MakGuard icon and ensure protection is{' '}
+                <strong className="text-emerald-400">ON</strong>. Reload the extension after updates.
               </span>
             </li>
           </ol>
@@ -161,7 +171,8 @@ export default function LandingPage() {
               https://makguard.vercel.app/demo/scam.html
             </a>
             <p className="text-xs text-neutral-500 mt-2">
-              Visit this page with the extension enabled to see a passive scam alert in action.
+              Visit this page with the extension enabled to see a passive scam alert. Also try
+              opening a mock phishing email in Gmail Web.
             </p>
           </div>
         </section>
