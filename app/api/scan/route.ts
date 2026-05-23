@@ -3,6 +3,8 @@ import { generateScanContent, generateScanMultimodal } from '@/lib/gemini'
 import type { ScanMultimodalPart } from '@/lib/gemini'
 import { SCAN_THREAT_TAGS, parseScanResult } from '@/lib/scan'
 
+const MAX_MESSAGE_LENGTH = 3000
+
 const SYSTEM_PROMPT = `You are MakGuard, a Malaysian financial scam detection AI.
 Analyze the provided message and determine if it is a scam.
 
@@ -41,13 +43,21 @@ Tag mapping hints:
 - urgent_money_transfer: rush payment or transfer
 - emotional_manipulation: fear, guilt, or pressure tactics`
 
+function truncateMessage(text: string): string {
+  if (text.length <= MAX_MESSAGE_LENGTH) return text
+  return `${text.slice(0, MAX_MESSAGE_LENGTH)}…`
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const message =
-      typeof body.message === 'string' ? body.message.trim() : ''
+      typeof body.message === 'string' ? truncateMessage(body.message.trim()) : ''
     const imageData =
       typeof body.image_data === 'string' ? body.image_data : undefined
+    const pageUrl =
+      typeof body.page_url === 'string' ? body.page_url.trim() : undefined
+    const source = typeof body.source === 'string' ? body.source : undefined
 
     if (!message && !imageData) {
       return NextResponse.json(
@@ -55,6 +65,21 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const contextLines: string[] = []
+    if (source === 'extension' && pageUrl) {
+      contextLines.push(
+        `Context: This text was passively extracted from a web page at ${pageUrl}. Focus on scam indicators in the visible page content.`
+      )
+    }
+    if (source === 'extension') {
+      contextLines.push(
+        'The user did not manually submit this — keep the explanation concise and actionable for a passive browser alert.'
+      )
+    }
+
+    const contextBlock =
+      contextLines.length > 0 ? `\n\n${contextLines.join('\n')}` : ''
 
     let responseText: string
 
@@ -64,7 +89,7 @@ export async function POST(request: NextRequest) {
       const base64Data = imageData.replace(/^data:image\/[\w+.-]+;base64,/, '')
 
       const parts: ScanMultimodalPart[] = [
-        { text: SYSTEM_PROMPT },
+        { text: SYSTEM_PROMPT + contextBlock },
         { inlineData: { mimeType, data: base64Data } },
       ]
 
@@ -78,7 +103,7 @@ export async function POST(request: NextRequest) {
 
       responseText = await generateScanMultimodal(parts)
     } else {
-      const prompt = `${SYSTEM_PROMPT}\n\nAnalyze this message:\n"${message}"`
+      const prompt = `${SYSTEM_PROMPT}${contextBlock}\n\nAnalyze this message:\n"${message}"`
       responseText = await generateScanContent(prompt)
     }
 

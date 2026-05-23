@@ -5,8 +5,8 @@ import './globals.css'
 const geist = Geist({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'MakGuard AI — Cyber Defense Terminal',
-  description: "Malaysia's AI-powered scam detection & cyber defense hub",
+  title: 'MakGuard AI — Malaysia Scam Shield',
+  description: "Malaysia's AI-powered passive scam detection — browser extension and cyber defense tools",
 }
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${geist.className} bg-neutral-950 text-white antialiased overflow-hidden`}>
+      <body className={`${geist.className} bg-neutral-950 text-white antialiased`}>
         {children}
       </body>
     </html>
